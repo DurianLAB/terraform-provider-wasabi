@@ -780,6 +780,7 @@ func resourceAwsS3BucketRead(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Add the region as an attribute
+	var region string
 	discoveredRegion, err := retryOnAwsCode("NotFound", func() (interface{}, error) {
 		return s3manager.GetBucketRegionWithClient(context.Background(), s3conn, d.Id(), func(r *request.Request) {
 			// By default, GetBucketRegion forces virtual host addressing, which
@@ -790,10 +791,18 @@ func resourceAwsS3BucketRead(d *schema.ResourceData, meta interface{}) error {
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("error getting S3 Bucket location: %s", err)
+		// GetBucketRegion sends an unsigned request, which non-AWS backends
+		// (e.g. Wasabi) reject with 403. Fall back to the provider's configured
+		// region since the bucket must live in the same region the provider is
+		// configured for.
+		if aws.StringValue(s3conn.Config.Region) != "" {
+			region = aws.StringValue(s3conn.Config.Region)
+		} else {
+			return fmt.Errorf("error getting S3 Bucket location: %s", err)
+		}
+	} else {
+		region = discoveredRegion.(string)
 	}
-
-	region := discoveredRegion.(string)
 	if err := d.Set("region", region); err != nil {
 		return err
 	}
