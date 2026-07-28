@@ -37,3 +37,4 @@ website/vendor
 *.winfile eol=crlf
 /.vs
 node_modules
+terraform-provider-wasabi_*
